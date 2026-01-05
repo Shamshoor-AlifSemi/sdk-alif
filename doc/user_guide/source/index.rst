@@ -12,8 +12,7 @@ Getting started with Zephyr Alif SDK
 
    introduction
    overview
-   building_application_binaries
-   programming_an_app
+   building_and_flashing
 
 Document History
 ================
@@ -32,10 +31,7 @@ Document History
       - Updated the document to include I3C, CAN FD and Touch screen
     * - 1.3
       - Updated the document to include DAC12, UTimer Counter, QDEC and SDMMC
+    * - 2.0
+      - Release with Zephyr v4.1.0. Added driver support for UART, SPI, I2C, LPI2C, I3C, LP-UART, LP-SPI, MIPI-DSI, CDC-200, LP-Timer, I2S, LPI2S, PDM, LPPDM, GPIO, MHU, HWSEM, RTC, WDT, Clk-Ctrl, PinMUX, Touch Screen, System Power Management (suspend to ram), LP-GPIO, PWM, QDEC, UTimer Counter, MRAM, OSPI Flash, SD, CRC, Entropy, DAC 12, ADC 12, CPI, LP-CPI, Ethos.
 
-Indices and tables
-==================
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

@@ -9,6 +9,8 @@
 zephyr_include_directories(.)
 
 add_subdirectory(ieee802154)
-add_subdirectory(bluetooth)
+add_subdirectory_ifdef(CONFIG_ALIF_BLE_HOST bluetooth)
 add_subdirectory(powermgr)
 add_subdirectory(modules)
+add_subdirectory(dbuf_display)
+add_subdirectory(img_assets)

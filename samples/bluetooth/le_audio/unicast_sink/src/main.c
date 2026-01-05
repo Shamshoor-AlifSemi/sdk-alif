@@ -11,12 +11,17 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/settings/settings.h>
 #include <zephyr/sys/__assert.h>
+
+#include <se_service.h>
+#include <soc_common.h>
+
 #include "alif_ble.h"
 #include "gapm.h"
 #include "gapm_le.h"
 #include "gapc.h"
 #include "gapc_le.h"
 #include "gapc_sec.h"
+
 #include "unicast_sink.h"
 #include "storage.h"
 
@@ -27,6 +32,16 @@
 #define APPEARANCE APPEARANCE_HEADSET
 #else
 #define APPEARANCE APPEARANCE_EARBUDS
+#endif
+
+#if CONFIG_UNICAST_LOCATION_BOTH
+#define IRK_VAL 0x8B
+#elif CONFIG_UNICAST_LOCATION_LEFT
+#define IRK_VAL 0x8A
+#elif CONFIG_UNICAST_LOCATION_RIGHT
+#define IRK_VAL 0x89
+#else
+#define IRK_VAL 0x88
 #endif
 
 LOG_MODULE_REGISTER(main, CONFIG_MAIN_LOG_LEVEL);
@@ -64,7 +79,7 @@ static struct app_con_bond_data app_con_bond_data;
 const char device_name[] = CONFIG_BLE_DEVICE_NAME;
 
 static const gap_sec_key_t gapm_irk = {.key = {0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0x07, 0x08, 0x11,
-					       0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88}};
+					       0x22, 0x33, 0x44, 0x55, 0x66, 0x77, IRK_VAL}};
 
 /* ---------------------------------------------------------------------------------------- */
 /* Settings NVM storage handlers */
@@ -408,7 +423,6 @@ static const gapc_connection_info_cb_t gapc_inf_cbs = {
 
 static const gapc_le_config_cb_t gapc_le_cfg_cbs = {0};
 
-#if !CONFIG_ALIF_BLE_ROM_IMAGE_V1_0 /* ROM version > 1.0 */
 static void on_gapm_err(uint32_t metainfo, uint8_t code)
 {
 	LOG_ERR("GAPM error %d", code);
@@ -418,29 +432,13 @@ static const gapm_cb_t gapm_err_cbs = {
 	.cb_hw_error = on_gapm_err,
 };
 
-#else /* ROM version 1.0 */
-static void on_gapm_err(enum co_error err)
-{
-	LOG_ERR("GAPM error %d", err);
-}
-
-static const gapm_err_info_config_cb_t gapm_err_cbs = {
-	.ctrl_hw_error = on_gapm_err,
-};
-
-#endif
-
 static const gapm_callbacks_t gapm_cbs = {
 	.p_con_req_cbs = &gapc_con_cbs,
 	.p_sec_cbs = &gapc_sec_cbs,
 	.p_info_cbs = &gapc_inf_cbs,
 	.p_le_config_cbs = &gapc_le_cfg_cbs,
 	.p_bt_config_cbs = NULL,    /* BT classic so not required */
-#if !CONFIG_ALIF_BLE_ROM_IMAGE_V1_0 /* ROM version > 1.0 */
 	.p_gapm_cbs = &gapm_err_cbs,
-#else
-	.p_err_info_config_cbs = &gapm_err_cbs,
-#endif
 };
 
 /* ---------------------------------------------------------------------------------------- */
@@ -493,8 +491,6 @@ static void on_gapm_le_random_addr_cb(uint16_t const status, const gap_addr_t *c
 
 static int ble_stack_configure(uint8_t const role)
 {
-	storage_load(SETTINGS_NAME_ADDR, &private_address, sizeof(private_address));
-
 	/* Bluetooth stack configuration*/
 	gapm_config_t gapm_cfg = {
 		.role = role,
@@ -519,6 +515,8 @@ static int ble_stack_configure(uint8_t const role)
 	};
 
 	int err;
+
+	storage_load(SETTINGS_NAME_ADDR, &private_address, sizeof(private_address));
 
 	if (private_address.addr[5] == 0) {
 		/* Configure GAPM to prepare address generation */
@@ -664,3 +662,45 @@ int main(void)
 
 	return 0;
 }
+
+
+static int soc_run_profile(void)
+{
+#define HOST_SYSTOP_PWR_REQ_LOGIC_ON_MEM_ON 0x20
+
+	const uint32_t host_bsys_pwr_req = sys_read32(HOST_BSYS_PWR_REQ);
+
+	sys_write32(host_bsys_pwr_req | HOST_SYSTOP_PWR_REQ_LOGIC_ON_MEM_ON, HOST_BSYS_PWR_REQ);
+
+	run_profile_t runp = {
+		.power_domains = PD_VBAT_AON_MASK | PD_SYST_MASK | PD_SSE700_AON_MASK |
+				 PD_DBSS_MASK | PD_SESS_MASK,
+		.dcdc_voltage = 825,
+		.dcdc_mode = DCDC_MODE_PFM_FORCED,
+		.aon_clk_src = CLK_SRC_LFXO,
+		.run_clk_src = CLK_SRC_PLL,
+		.cpu_clk_freq = CLOCK_FREQUENCY_160MHZ,
+		.phy_pwr_gating = LDO_PHY_MASK,
+		.ip_clock_gating = LP_PERIPH_MASK,
+		.vdd_ioflex_3V3 = IOFLEX_LEVEL_1V8,
+		.scaled_clk_freq = SCALED_FREQ_XO_HIGH_DIV_38_4_MHZ,
+		.memory_blocks = (MRAM_MASK | (SRAM2_MASK | SRAM3_MASK) |
+				  (SERAM_1_MASK | SERAM_2_MASK | SERAM_3_MASK | SERAM_4_MASK) |
+				  /* M55-HE ITCM */
+				  (SRAM4_1_MASK | SRAM4_2_MASK | SRAM4_3_MASK | SRAM4_4_MASK) |
+				  /* M55-HE DTCM */
+				  (SRAM5_1_MASK | SRAM5_2_MASK | SRAM5_3_MASK | SRAM5_4_MASK |
+				   SRAM5_5_MASK)),
+	};
+
+	if (se_service_set_run_cfg(&runp)) {
+		LOG_ERR("run profile set failed!");
+		return -ENOEXEC;
+	}
+
+	sys_write32(host_bsys_pwr_req, HOST_BSYS_PWR_REQ);
+	sys_write32(0xFFFFFFFF, 0x1A60900C);
+
+	return 0;
+}
+SYS_INIT(soc_run_profile, PRE_KERNEL_1, 3);

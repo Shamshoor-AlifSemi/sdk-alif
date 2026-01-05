@@ -1,4 +1,4 @@
-/* Copyright (C) 2024 Alif Semiconductor - All Rights Reserved.
+/* Copyright (C) 2025 Alif Semiconductor - All Rights Reserved.
  * Use, distribution and modification of this code is permitted under the
  * terms stated in the Alif Semiconductor Software License Agreement
  *
@@ -16,7 +16,7 @@ LOG_MODULE_REGISTER(app, LOG_LEVEL_INF);
 #include <zephyr/devicetree.h>
 #include <string.h>
 #include <zephyr/drivers/spi.h>
-#include <soc.h>
+#include <soc_common.h>
 
 #define Mhz		1000000
 #define Khz		1000
@@ -254,8 +254,8 @@ static void slave_spi(void *p1, void *p2, void *p3)
 
 #if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(dma2), arm_dma_pl330, okay) /* dma2 */
 
-#if (IS_ENABLED(CONFIG_SOC_SERIES_ENSEMBLE_E1C) ||  \
-	IS_ENABLED(CONFIG_SOC_SERIES_BALLETTO_B1)) /* E1C/B1 dma2 */
+#if (IS_ENABLED(CONFIG_SOC_SERIES_E1C) ||  \
+	IS_ENABLED(CONFIG_SOC_SERIES_B1)) /* E1C/B1 dma2 */
 
 #if DT_NODE_HAS_PROP(DT_NODELABEL(lpspi0), dmas) /* E1C/B1 LPSPI0 dma2 */
 static void configure_lpspi0_for_dma2(void)
@@ -331,6 +331,42 @@ static void configure_spi0_for_dma2(void)
 	sys_write32(regdata, EVTRTRLOCAL_DMA_ACK_TYPE0 + (SPI0_DMA_GROUP * 4));
 }
 #endif /* E1C/B1 SPI0 dma2 */
+
+#if DT_NODE_HAS_PROP(DT_NODELABEL(spi1), dmas) /* E1C/B1 SPI1 dma2 */
+static void configure_spi1_for_dma2(void)
+{
+	uint32_t regdata;
+
+	/* Enable SPI1 dma0 EVTRTR channel */
+	#define SPI1_DMA_RX_PERIPH_REQ         17
+	#define SPI1_DMA_TX_PERIPH_REQ         21
+	#define SPI1_DMA_GROUP                 2
+
+	printk("\n configure spi1 for dma2\n");
+
+	/* channel enable SPI1-RX */
+	sys_write32(DMA_CTRL_ENA |
+			(0 << DMA_CTRL_ACK_TYPE_Pos)|
+			(SPI1_DMA_GROUP),
+			EVTRTRLOCAL_DMA_CTRL0 + (SPI1_DMA_RX_PERIPH_REQ * 4));
+
+	/* DMA Handshake SPI1-RX */
+	regdata = sys_read32(EVTRTRLOCAL_DMA_ACK_TYPE0 + (SPI1_DMA_GROUP * 4));
+	regdata |= (1 << SPI1_DMA_RX_PERIPH_REQ);
+	sys_write32(regdata, EVTRTRLOCAL_DMA_ACK_TYPE0 + (SPI1_DMA_GROUP * 4));
+
+	/* channel enable SPI1-TX */
+	sys_write32(DMA_CTRL_ENA |
+			(0 << DMA_CTRL_ACK_TYPE_Pos)|
+			(SPI1_DMA_GROUP),
+			EVTRTRLOCAL_DMA_CTRL0 + (SPI1_DMA_TX_PERIPH_REQ * 4));
+
+	/* DMA Handshake SPI1-TX */
+	regdata = sys_read32(EVTRTRLOCAL_DMA_ACK_TYPE0 + (SPI1_DMA_GROUP * 4));
+	regdata |= (1 << SPI1_DMA_TX_PERIPH_REQ);
+	sys_write32(regdata, EVTRTRLOCAL_DMA_ACK_TYPE0 + (SPI1_DMA_GROUP * 4));
+}
+#endif /* E1C/B1 SPI1 dma2 */
 
 #endif /* E1C/B1 dma2 */
 #endif /* dma2 */
@@ -491,8 +527,8 @@ int main(void)
 
 #if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(dma2), arm_dma_pl330, okay) /* dma2 */
 
-#if (IS_ENABLED(CONFIG_SOC_SERIES_ENSEMBLE_E1C) || \
-	IS_ENABLED(CONFIG_SOC_SERIES_BALLETTO_B1)) /* E1C/B1 dma2 */
+#if (IS_ENABLED(CONFIG_SOC_SERIES_E1C) || \
+	IS_ENABLED(CONFIG_SOC_SERIES_B1)) /* E1C/B1 dma2 */
 
 #if DT_NODE_HAS_PROP(DT_NODELABEL(lpspi0), dmas) /* E1C/B1 LPSPI0 dma2 */
 	configure_lpspi0_for_dma2();
@@ -501,9 +537,12 @@ int main(void)
 #if DT_NODE_HAS_PROP(DT_NODELABEL(spi0), dmas) /* E1C/B1 SPI0 dma2 */
 	configure_spi0_for_dma2();
 #endif
-	/* end E1C/B1 dma2 */
 
+#if DT_NODE_HAS_PROP(DT_NODELABEL(spi1), dmas) /* E1C/B1 SPI1 dma2 */
+	configure_spi1_for_dma2();
 #endif
+
+#endif /* end E1C/B1 dma2 */
 #endif /* dma2 */
 
 #if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(dma0), arm_dma_pl330, okay) /* dma0 */
@@ -542,9 +581,10 @@ int main(void)
 	/* as we are testing Loopback on the same board,
 	 * make sure slave is ready before master starts.
 	 */
+	k_msleep(100);
 	k_tid_t tidm = k_thread_create(&MasterT_data, MasterT_stack, STACKSIZE,
 			&master_spi, NULL, NULL, NULL,
-			MASTER_PRIORITY, 0, K_MSEC(100));
+			MASTER_PRIORITY, 0, K_NO_WAIT);
 	if (tidm == NULL) {
 		printk("Error creating Master Thread\n");
 	}

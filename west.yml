@@ -28,7 +28,7 @@ manifest:
 
     - name: zephyr
       repo-path: zephyr_alif
-      revision: a92ae0ad42df74391761e1258ffa573d4e20102a
+      revision: 9951f106e882be7cdc840bec6cc4e07dbd005918
       import:
         # In addition to the zephyr repository itself,
         # Alif SDK fetches the needed projects
@@ -70,13 +70,23 @@ manifest:
     - name: mcuboot_alif
       repo-path: mcuboot_alif
       path: bootloader/mcuboot
-      revision: main
+      revision: 346f7374ff4467e40b5594658f8ac67a5e9813c9
 
     - name: cmsis_alif
       revision: 85f6b92af0f6ac72594d391f895c45cc30847e41
       path: modules/hal/cmsis
       groups:
          - hal
+
+    - name: dave2d
+      repo-path: alif_dave2d-driver
+      revision: 6bce53ec2563a72990b2b8bf3be08e8abdec5fd8
+      path: modules/drivers/dave2d
+
+    - name: aipl
+      repo-path: alif_image-processing-lib
+      revision: 1353536b04b2b6e6262e6044cfc6c75dbb7916d6
+      path: modules/lib/aipl
 
   self:
     path: alif

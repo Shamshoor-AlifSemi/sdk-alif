@@ -15,7 +15,7 @@
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/dma.h>
 #include <drivers/i2s_sync.h>
-#include <soc.h>
+#include <soc_common.h>
 
 #include "i2s_sync_int.h"
 
@@ -416,10 +416,18 @@ static void i2s_disable_tx(const struct device *dev)
 	struct i2s_sync_data *dev_data = dev->data;
 	struct i2s_t *i2s = dev_cfg->paddr;
 
+	if (dev_cfg->dma_tx.enabled) {
+		int ret = dma_stop(dev_cfg->dma_dev, dev_cfg->dma_tx.ch);
+
+		if (ret < 0) {
+			LOG_ERR("I2S:%s tx dma_stop failed %d\n", dev->name, ret);
+		}
+	}
 	i2s_tx_channel_disable(i2s);
 	i2s_tx_block_disable(i2s);
 	i2s_tx_fifo_interrupt_disable(i2s);
 	i2s_tx_overrun_interrupt_disable(i2s);
+
 	i2s_tx_fifo_clear(i2s);
 	channel_disable(&dev_data->tx);
 }
@@ -434,6 +442,15 @@ static void i2s_disable_rx(const struct device *dev)
 	i2s_rx_block_disable(i2s);
 	i2s_rx_fifo_interrupt_disable(i2s);
 	i2s_rx_overrun_interrupt_disable(i2s);
+
+	if (dev_cfg->dma_rx.enabled) {
+		int ret = dma_stop(dev_cfg->dma_dev, dev_cfg->dma_rx.ch);
+
+		if (ret < 0) {
+			LOG_ERR("I2S:%s rx dma_stop failed %d\n", dev->name, ret);
+		}
+	}
+
 	i2s_rx_fifo_clear(i2s);
 	channel_disable(&dev_data->rx);
 }

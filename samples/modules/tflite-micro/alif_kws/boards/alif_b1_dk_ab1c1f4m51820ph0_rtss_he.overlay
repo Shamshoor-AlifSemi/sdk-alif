@@ -1,0 +1,37 @@
+/* Copyright (C) 2025 Alif Semiconductor - All Rights Reserved.
+ * Use, distribution and modification of this code is permitted under the
+ * terms stated in the Alif Semiconductor Software License Agreement
+ *
+ * You should have received a copy of the Alif Semiconductor Software
+ * License Agreement with this file. If not, please write to:
+ * contact@alifsemi.com, or visit: https: //alifsemi.com/license
+ *
+ */
+
+/ {
+	aliases {
+		pdm-audio = &lppdm;
+	};
+};
+
+&lppdm {
+	status = "okay";
+};
+
+&ospi0 {
+	bus-speed = <80000000>;
+	status = "okay";
+};
+
+
+/ {
+	/* Compile-time assertion: ethosu0 must exist */
+	ethosu_u55_check {
+		compatible = "vnd,ethosu-u55-check";
+		ethosu-node = <&ethosu0>;
+	};
+};
+
+&ethosu0 {
+	status = "okay";
+};
